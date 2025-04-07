@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algoritmo de Dijkstra</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        #network {
+            width: 800px;
+            height: 600px;
+            background-color: transparent; /* Hacer el fondo transparente */
+            border: none;  /* Quitar el borde */
+            margin-bottom: 20px;
+        }
+        .input-section {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .input-section label {
+            margin-bottom: 5px;
+        }
+        .input-section input {
+            margin: 5px;
+            padding: 8px;
+            width: 200px;
+            max-width: 90%;
+            border: 1px solid #9575cd;
+            border-radius: 4px;
+            background-color: #333;
+            color: white;
+        }
+        .btn {
+            background-color: #6a1b9a;
+            border: none;
+            padding: 10px 15px;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #9c4dcc;
+        }
+        .input-section input[type="number"] {
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="input-section">
+        <h2>Construir el Grafo</h2>
+        <label for="nodes_input">Número de nodos:</label>
+        <input type="number" id="nodes_input" min="1" max="10" value="2">
+        <button class="btn" onclick="createGraph()">Crear grafo</button>
+    </div>
+
+    <div class="input-section" id="node-input-section" style="display: none;">
+        <h2>Definir las Conexiones</h2>
+        <div id="node-inputs"></div>
+        <label for="start_node">Nodo de inicio:</label>
+        <input type="number" id="start_node" min="1" max="10" value="1">
+        <label for="end_node">Nodo de destino:</label>
+        <input type="number" id="end_node" min="1" max="10" value="2">
+        <button class="btn" onclick="generateGraph()">Generar Grafo</button>
+    </div>
+
+    <div id="network"></div>
+
+    <button class="btn" onclick="calculateShortestPath()">Calcular Ruta Más Corta</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <script>
+        let nodes = [];
+        let edges = [];
+        let graph = { nodes: nodes, edges: edges };
+
+        const container = document.getElementById('network');
+        const data = { nodes: nodes, edges: edges };
+        const options = {
+            nodes: {
+                shape: 'dot',
+                size: 20,
+                color: {
+                    background: '#b39ddb',  // Nodos de color más claro (lavanda)
+                    border: '#9575cd',      // Borde de los nodos
+                    highlight: { background: '#e100ff', border: '#4a148c' }
+                },
+                font: { color: '#ffffff' }
+            },
+            edges: {
+                color: { color: '#9e7bb5', highlight: '#f06292' },  // Color más claro de las aristas (lavanda claro)
+                width: 2,
+                smooth: { type: 'continuous' },
+                font: { color: '#ffffff' }, // Asegura que las distancias también sean visibles
+                label: ''
+            },
+            physics: false
+        };
+        const network = new vis.Network(container, data, options);
+
+        function createGraph() {
+            const numNodes = parseInt(document.getElementById('nodes_input').value);
+            nodes = [];
+            edges = [];
+            graph = { nodes: nodes, edges: edges };
+
+            for (let i = 0; i < numNodes; i++) {
+                nodes.push({ id: i, label: 'Nodo ' + (i + 1) });
+            }
+
+            // Muestra el formulario para ingresar las conexiones de los nodos
+            document.getElementById('node-input-section').style.display = 'block';
+            generateNodeInputs(numNodes);
+        }
+
+        function generateNodeInputs(numNodes) {
+            const nodeInputsDiv = document.getElementById('node-inputs');
+            nodeInputsDiv.innerHTML = '';
+
+            for (let i = 0; i < numNodes; i++) {
+                const nodeInput = document.createElement('div');
+                nodeInput.innerHTML = `
+                    <label for="node_${i}">Conexiones de Nodo ${i + 1}: </label>
+                    <input type="text" id="node_${i}" placeholder="Nodo2:10,Nodo3:5" style="width: 100%;" />
+                `;
+                nodeInputsDiv.appendChild(nodeInput);
+            }
+        }
+
+        function generateGraph() {
+            const numNodes = parseInt(document.getElementById('nodes_input').value);
+
+            // Limpiar las aristas y volver a generarlas
+            edges = [];
+
+            nodes.forEach((node, index) => {
+                const connections = document.getElementById(`node_${index}`).value.trim();
+                if (connections) {
+                    connections.split(',').forEach(conn => {
+                        const [neighbor, weight] = conn.split(':');
+                        const targetNode = parseInt(neighbor.replace('Nodo', '')) - 1; // extrae el índice del nodo destino
+                        if (!isNaN(targetNode)) {
+                            edges.push({
+                                from: node.id,
+                                to: targetNode,
+                                label: weight,
+                                length: parseInt(weight),  // Usamos el valor de la distancia para visualizar
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Redibuja el grafo
+            network.setData({ nodes, edges });
+
+            // Después de generar el grafo, calcular la ruta más corta
+            calculateShortestPath();
+        }
+
+        function calculateShortestPath() {
+            const startNode = parseInt(document.getElementById('start_node').value) - 1;  // Convertir a índice
+            const endNode = parseInt(document.getElementById('end_node').value) - 1;  // Convertir a índice
+
+            // Aquí implementamos el algoritmo de Dijkstra
+            const dist = Array(nodes.length).fill(Infinity);
+            const prev = Array(nodes.length).fill(null);
+            dist[startNode] = 0;
+
+            const queue = [startNode];
+
+            while (queue.length > 0) {
+                const node = queue.shift();
+
+                edges.forEach(edge => {
+                    if (edge.from === node) {
+                        const alt = dist[node] + edge.length;
+                        if (alt < dist[edge.to]) {
+                            dist[edge.to] = alt;
+                            prev[edge.to] = node;
+                            queue.push(edge.to);
+                        }
+                    }
+                });
+            }
+
+            // Recuperar la ruta más corta
+            const path = [];
+            let currentNode = endNode;
+            while (currentNode !== null) {
+                path.unshift(nodes[currentNode].label);
+                currentNode = prev[currentNode];
+            }
+
+            // Mostrar la ruta más corta y la distancia total
+            alert('Ruta más corta: ' + path.join(' -> ') + ' | Distancia total: ' + dist[endNode]);
+            highlightPath(path);
+        }
+
+        function highlightPath(path) {
+            // Aseguramos que solo las aristas en la ruta más corta sean resaltadas
+            const nodesInPath = new Set(path);
+            edges.forEach(edge => {
+                // Si ambas extremidades de la arista están en la ruta más corta, resáltala
+                if (nodesInPath.has(nodes[edge.from].label) && nodesInPath.has(nodes[edge.to].label)) {
+                    edge.color = { color: '#ff0000' };  // Resaltamos la ruta más corta en rojo
+                    edge.width = 4;  // Aumentamos el grosor de las aristas en la ruta más corta
+                } else {
+                    edge.color = { color: '#9e7bb5' };  // Restablecer el color de las aristas no seleccionadas
+                    edge.width = 2;  // Restablecer el grosor de las aristas no seleccionadas
+                }
+            });
+
+            nodes.forEach(node => {
+                if (path.includes(node.label)) {
+                    node.color = { background: '#ff0000', border: '#ff0000' };  // Resaltamos los nodos en rojo
+                } else {
+                    node.color = { background: '#b39ddb', border: '#9575cd' };  // Restablecer los nodos a su color original
+                }
+            });
+
+            // Redibuja el grafo con los colores y anchos actualizados
+            network.setData({ nodes, edges });
+        }
+    </script>
+
+</body>
+</html>
